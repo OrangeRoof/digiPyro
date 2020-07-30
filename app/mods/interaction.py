@@ -29,21 +29,46 @@ def selection_window(video, dim, start):
     ret, frame = video.read()
     frame = cv2.resize(frame, dim, interpolation=cv2.INTER_CUBIC)
 
-    cv2.namedWindow('Select Circle')
-    cv2.setMouseCallback('Select Circle', select_circle)
+    cv2.namedWindow('Select Circle', flags=cv2.WINDOW_NORMAL)
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    cimg = cv2.medianBlur(img, 5)
 
-    instructions_circle(frame)
-    orig = frame.copy()
+    circles = cv2.HoughCircles(cimg,cv2.HOUGH_GRADIENT, 1, 200,
+                                param1=300,param2=100,minRadius=100,maxRadius=0)
+    print(circles)
 
+    circles = np.uint16(np.around(circles))
+    for i in circles[0,:]:
+        # draw the outer circle
+        cv2.circle(frame,(i[0],i[1]),i[2],(255,255,0),2)
+        # draw the center of the circle
+        cv2.circle(frame,(i[0],i[1]),2,(0,0,255),3)
+
+    # what if the circle was the friends we made along the way
+    cv2.imshow('Select Circle', frame)
     while 1:
-        cv2.imshow('Select Circle', frame)
         k = cv2.waitKey(0)
         if k == 13:
             break
-        elif k == 127:
-            remove_point(orig)
-
     cv2.destroyWindow('Select Circle')
+
+    center = (i[0], i[1])
+    poly1 = np.array([[0,0],
+                      [frame.shape[1],0],
+                      [frame.shape[1],frame.shape[0]],
+                      [0,frame.shape[0]]])
+
+    poly2 = np.array([[i[0]+i[2],
+                       i[1]]])
+    circpts = 100
+    # approximate the circle as a 100-gon
+    # which makes it easier to draw the mask,
+    # as we define the mask region as the area between two polygons
+    for n in range(1,circpts):
+        theta =  2 * np.pi * (n / circpts)
+        nextpt = np.array([[int(i[0] + (i[2] * np.cos(theta))),
+                            int(i[1] + (i[2] * np.sin(theta)))]])
+        poly2 = np.append(poly2, nextpt, axis=0)
     return poly1, poly2, center
 
 def select_circle(event, x, y, flags, param):
